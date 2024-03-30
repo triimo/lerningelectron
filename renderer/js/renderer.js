@@ -1,5 +1,6 @@
 // Some JavaScript to load the image and show the form. There is no actual backend functionality. This is just the UI
 const form = document.querySelector('#img-form');
+const img = document.querySelector('#img');
 const heightInput = document.querySelector('#height');
 const widthInput = document.querySelector('#width');
 const outputPath = document.querySelector('#output-path');
@@ -35,6 +36,7 @@ function sendImage(e) {
 
   const width = widthInput.value;
   const height = heightInput.value;
+  const imgPath = img.files[0].path;
 
   if(!img.files[0]) {
     alertError('Please Upload an Image');
@@ -42,10 +44,22 @@ function sendImage(e) {
   }
 
   if (width === '' || height === '') {
-    alertError('Please Upload an Image');
+    alertError('Please Fill Height And  Width');
     return;
   }
+
+  //send to main using ipc reander.
+  ipcRender.send('image:resize', {
+    imgPath,
+    width,
+    height,
+  });
 }
+
+//Catch the image:done event
+ipcRender.on('image:done', () => {
+  alertSuccess(`Image resized to ${widthInput.value} x ${heightInput.value}`)
+})
 
 function isFileImage(file) {
     const acceptedImageTypes = ['image/gif', 'image/jpeg', 'image/png'];

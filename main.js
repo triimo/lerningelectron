@@ -1,11 +1,18 @@
 const path  = require('path');
-const { app, BrowserWindow, Menu } = require('electron');
+const os  = require('os');
+const fs  = require('fs');
+const resizeImg = require('resize-img');
+const { app, BrowserWindow, Menu, ipcMain, shell } = require('electron');
 
-const isDev = process.env.NODE_ENV !== 'development';
+process.env.NODE_ENV = 'production';
+
+const isDev = process.env.NODE_ENV !== 'production';
 const isMac = process.platform === 'darwin';
 
+let mainWindow;
+
 function createMainWindow() {
-    const mainWIndow = new BrowserWindow({
+    mainWindow = new BrowserWindow({
         title: 'Image Resizer',
         width: isDev ? 1000 : 500,
         height: 600,
@@ -18,10 +25,10 @@ function createMainWindow() {
 
     // Open devtool if in dev enf
     if(isDev) {
-        mainWIndow.webContents.openDevTools();
+        mainWindow.webContents.openDevTools();
     }
 
-    mainWIndow.loadFile(path.join(__dirname,'./renderer/index.html'));
+    mainWindow.loadFile(path.join(__dirname,'./renderer/index.html'));
 }
 
 //Create About Windows 
@@ -41,6 +48,8 @@ app.whenReady().then(() => {
 
     const mainMenu = Menu.buildFromTemplate(menu);
     Menu.setApplicationMenu(mainMenu);
+
+    mainWindow.on('closed', () => (mainWindow = null))
 
     app.on('activate', () => {
         // On macOS it's common to re-create a window in the app when the
@@ -73,6 +82,36 @@ const menu = [
         }]
     }]:[])
 ];
+
+//Response to ipc reander resize
+ipcMain.on('image:resize', (e, option)=> {
+    option.dest = path.join(os.homedir(), 'imageresizer')
+    resizeImage(option);
+})
+
+async function resizeImage({imgPath, width, height, dest}) {
+    try {
+      const newPath = await resizeImg(fs.readFileSync(imgPath), {
+        width: +width,
+        height: +height
+      });
+      
+      const filename = path.basename(imgPath);
+
+      if(!fs.existsSync(dest)) {
+        fs.mkdirSync(dest);
+      }
+
+      fs.writeFileSync(path.join(dest, filename), newPath);
+
+      mainWindow.webContents.send('image:done');
+
+      shell.openPath(dest);
+    }
+    catch(err) {
+        console.log(err);
+    }
+}
 
 app.on('window-all-closed', () => {
     if (!isMac) app.quit()
